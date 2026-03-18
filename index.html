@@ -186,17 +186,17 @@
       <div class="card full">
         <div class="card-title">
           종목별 수익률
-          <span class="card-sub">매입가는 자산 관리 탭에서 입력</span>
+          <span class="card-sub">매주 캡처 업데이트 시 반영</span>
         </div>
         <div id="invest-owner-filter" style="display:flex;gap:6px;margin-bottom:12px;">
-          <button class="of-btn active" onclick="filterInvestOwner('all',this)">전체</button>
-          <button class="of-btn" onclick="filterInvestOwner('me',this)">남편</button>
-          <button class="of-btn" onclick="filterInvestOwner('wife',this)">아내</button>
+          <button class="of-btn active" data-owner="all">전체</button>
+          <button class="of-btn" data-owner="me">남편</button>
+          <button class="of-btn" data-owner="wife">아내</button>
         </div>
         <div id="invest-sort" style="display:flex;gap:6px;margin-bottom:12px;">
-          <button class="of-btn active" onclick="sortInvest('rate',this)">수익률순</button>
-          <button class="of-btn" onclick="sortInvest('amount',this)">평가금액순</button>
-          <button class="of-btn" onclick="sortInvest('profit',this)">수익금액순</button>
+          <button class="of-btn active" data-sort="rate">수익률순</button>
+          <button class="of-btn" data-sort="amount">평가금액순</button>
+          <button class="of-btn" data-sort="profit">수익금액순</button>
         </div>
         <div id="invest-list"></div>
       </div>
@@ -737,18 +737,30 @@ function updateInvestTab() {
     }).join('')}`;
 }
 
-function filterInvestOwner(o, btn) {
+function filterInvestOwner(o) {
   investOwnerFilter = o;
-  document.querySelectorAll('#invest-owner-filter .of-btn').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
+  document.querySelectorAll('#invest-owner-filter .of-btn').forEach(b=>{
+    b.classList.toggle('active', b.dataset.owner === o);
+  });
   updateInvestTab();
 }
 
-function sortInvest(key, btn) {
+function sortInvest(key) {
   investSortKey = key;
-  document.querySelectorAll('#invest-sort .of-btn').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
+  document.querySelectorAll('#invest-sort .of-btn').forEach(b=>{
+    b.classList.toggle('active', b.dataset.sort === key);
+  });
   updateInvestTab();
+}
+
+// 투자 탭 버튼 이벤트 리스너 등록
+function initInvestListeners() {
+  document.querySelectorAll('#invest-owner-filter .of-btn').forEach(btn => {
+    btn.addEventListener('click', () => filterInvestOwner(btn.dataset.owner));
+  });
+  document.querySelectorAll('#invest-sort .of-btn').forEach(btn => {
+    btn.addEventListener('click', () => sortInvest(btn.dataset.sort));
+  });
 }
 
 function updateDetailList() {
@@ -899,7 +911,7 @@ function switchTab(tab) {
   if (tab==='chart')    setTimeout(updateCharts, 60);
   if (tab==='tracking') updateSnaps();
   if (tab==='assets')   updateDetailList();
-  if (tab==='invest')   updateInvestTab();
+  if (tab==='invest')   { initInvestListeners(); updateInvestTab(); }
 }
 
 function renderAll() {
@@ -927,8 +939,6 @@ window.updateAmtWon       = updateAmtWon;
 window.formatInp          = formatInp;
 window.deleteSnap         = deleteSnap;
 window.filterOwner        = filterOwner;
-window.filterInvestOwner  = filterInvestOwner;
-window.sortInvest         = sortInvest;
 </script>
 </body>
 </html>
