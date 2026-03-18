@@ -284,14 +284,83 @@ let assets = [];
 let snapshots = [];
 let donutChart = null, histChart = null, stackChart = null;
 
-// ── Firebase 데이터 로드/저장 ──────────────────────────────
+// ── 과거 히스토리 스냅샷 시딩 ────────────────────────────
+const HISTORICAL_SNAPS = [
+  {
+    date: '2025-06-24',
+    net:   65961.7711,
+    gross: 115552.9112,
+    debt:  -49591.14,
+    cats: {
+      '현금':      3979.6632,
+      '예금/적금': 4088.6762,
+      '주식/ETF':  15031.6346,
+      '부동산':    90750,
+    }
+  },
+  {
+    date: '2025-07-03',
+    net:   64761.4287,
+    gross: 114199.6002,
+    debt:  -49438.1715,
+    cats: {
+      '현금':      6144.0622,
+      '예금/적금': 4086.4262,
+      '주식/ETF':  13054.8887,
+      '부동산':    90750,
+    }
+  },
+  {
+    date: '2025-07-08',
+    net:   64818.3547,
+    gross: 114282.5361,
+    debt:  -49464.1814,
+    cats: {
+      '현금':      4527.443,
+      '예금/적금': 4084.4162,
+      '주식/ETF':  14741.2252,
+      '부동산':    90750,
+    }
+  },
+  {
+    date: '2025-07-11',
+    net:   65246.2051,
+    gross: 114711.9265,
+    debt:  -49465.7214,
+    cats: {
+      '현금':      3995.6534,
+      '예금/적금': 4087.9162,
+      '주식/ETF':  15698.9052,
+      '부동산':    90750,
+    }
+  },
+  {
+    date: '2025-07-15',
+    net:   66207.3141,
+    gross: 115682.7866,
+    debt:  -49475.4725,
+    cats: {
+      '현금':      4084.428,
+      '예금/적금': 4085.7162,
+      '주식/ETF':  15836.7883,
+      '부동산':    91500,
+    }
+  },
+];
+
+async function seedHistoricalSnaps() {
+  for (const snap of HISTORICAL_SNAPS) {
+    const ref = doc(db, 'family', 'snapshots', 'items', snap.date);
+    await setDoc(ref, snap); // 항상 덮어쓰기 (단위 수정 반영)
+  }
+}
+
 async function loadData() {
   showToast('데이터 불러오는 중...');
   try {
-    // 자산 목록
+    await seedHistoricalSnaps();
     const aSnap = await getDoc(ASSETS_DOC);
     assets = aSnap.exists() ? aSnap.data().list : defaultAssets();
-    // 스냅샷 목록
     const sSnap = await getDocs(SNAPS_COL);
     snapshots = sSnap.docs.map(d=>d.data()).sort((a,b)=>a.date.localeCompare(b.date));
   } catch(e) {
