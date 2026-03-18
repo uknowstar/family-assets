@@ -118,9 +118,7 @@
     <div class="header-left">
       <h1>우리집 자산 현황</h1>
       <div class="sub" id="today-date"></div>
-      <div id="crypto-updated" style="font-size:11px;color:#BA7517;margin-top:2px;"></div>
     </div>
-    <button class="snap-btn" style="background:var(--bg-secondary);color:var(--text-secondary);border:0.5px solid var(--border-md);" onclick="fetchCryptoPrices()">🔄 코인 갱신</button>
     <button class="snap-btn" onclick="saveSnapshot()">📸 오늘 스냅샷 저장</button>
   </div>
 
@@ -442,97 +440,8 @@ function startRealtimeSync() {
   });
 }
 
-// ── 업비트 실시간 가상화폐 가격 연동 ─────────────────────────
-// 보유 수량 (고정값 — 변경 시 여기만 수정)
-const CRYPTO_HOLDINGS = {
-  'KRW-BTC': { id: 15, qty: 0.03071389,  name: '비트코인' },
-  'KRW-ETH': { id: 16, qty: 0.57969936,  name: '이더리움' },
-  'KRW-SOL': { id: 17, qty: 5.31128436,  name: '솔라나' },
-  'KRW-XRP': { id: 18, qty: 197.56725405, name: '리플' },
-};
 
-let cryptoLastUpdated = null;
 
-async function fetchCryptoPrices() {
-  try {
-    const tickers = Object.keys(CRYPTO_HOLDINGS).join(',');
-    const res = await fetch(`https://api.upbit.com/v1/ticker?markets=${tickers}`);
-    if (!res.ok) throw new Error('업비트 API 오류');
-    const data = await res.json();
-
-    let updated = false;
-    data.forEach(item => {
-      const holding = CRYPTO_HOLDINGS[item.market];
-      if (!holding) return;
-      const newAmount = (item.trade_price * holding.qty) / 10000; // 원 → 만원
-      const asset = assets.find(a => a.id === holding.id);
-      if (asset && Math.abs(asset.amount - newAmount) > 0.01) {
-        asset.amount = Math.round(newAmount * 10000) / 10000;
-        updated = true;
-      }
-    });
-
-    if (updated) {
-      cryptoLastUpdated = new Date();
-      updateCryptoTimestamp();
-      updateSummary(); updateDonut(); updateCatList(); updateAssetList();
-      if (document.getElementById('tab-invest').style.display !== 'none') updateInvestTab();
-    }
-  } catch(e) {
-    console.warn('가상화폐 가격 조회 실패:', e.message);
-  }
-}
-
-function updateCryptoTimestamp() {
-  const el = document.getElementById('crypto-updated');
-  if (el && cryptoLastUpdated) {
-    el.textContent = '코인 ' + cryptoLastUpdated.toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit'}) + ' 업데이트';
-  }
-}
-
-// 앱 시작 시 + 1분마다 자동 갱신
-function startCryptoPricePolling() {
-  fetchCryptoPrices();
-  setInterval(fetchCryptoPrices, 60000); // 60초마다
-}
-  if (!coinAssets.length) return;
-
-  const tickers = coinAssets.map(a => a.ticker).join(',');
-  try {
-    const res = await fetch(`https://api.upbit.com/v1/ticker?markets=${tickers}`);
-    const data = await res.json();
-
-    let updated = false;
-    data.forEach(item => {
-      const asset = assets.find(a => a.ticker === item.market);
-      if (!asset) return;
-
-      const newAmount  = (item.trade_price * asset.qty) / 10000; // 원 → 만원
-      const buyAmt     = asset.amount - (asset.profit || 0);     // 매수금액 (만원)
-      const newProfit  = newAmount - buyAmt;
-      const newRate    = buyAmt > 0 ? (newProfit / buyAmt * 100) : 0;
-
-      asset.amount = Math.round(newAmount * 10000) / 10000;
-      asset.profit = Math.round(newProfit * 10000) / 10000;
-      asset.rate   = Math.round(newRate * 100) / 100;
-      updated = true;
-    });
-
-    if (updated) {
-      updateSummary(); updateDonut(); updateCatList(); updateAssetList();
-      if (document.getElementById('tab-invest').style.display !== 'none') updateInvestTab();
-      showToast('💰 코인 가격 업데이트됨');
-    }
-  } catch(e) {
-    console.error('업비트 API 오류', e);
-  }
-}
-
-// 30초마다 자동 갱신
-function startCryptoAutoRefresh() {
-  fetchCryptoPrices();
-  setInterval(fetchCryptoPrices, 30000);
-}
 function defaultAssets() {
   return [
     // ── 남편 ──────────────────────────────────
@@ -550,10 +459,10 @@ function defaultAssets() {
     { id:12, name:'삼성신종종류형MMF',            cat:'주식/ETF',  amount:2.6385,       owner:'me',  profit:0.0027,    rate:0.10 },
     { id:13, name:'중개형ISA (남편)',             cat:'주식/ETF',  amount:0.2537,       owner:'me' },
     { id:14, name:'키움4차산업혁명ETF',           cat:'주식/ETF',  amount:0.0662,       owner:'me' },
-    { id:15, name:'비트코인',                    cat:'가상화폐',  amount:335.6198,     owner:'me',  profit:-74.2161,  rate:-18.1,  ticker:'KRW-BTC', qty:0.03071389 },
-    { id:16, name:'이더리움',                    cat:'가상화폐',  amount:198.8368,     owner:'me',  profit:-51.0648,  rate:-20.4,  ticker:'KRW-ETH', qty:0.57969936 },
-    { id:17, name:'솔라나',                      cat:'가상화폐',  amount:74.3048,      owner:'me',  profit:-30.6451,  rate:-29.1,  ticker:'KRW-SOL', qty:5.31128436 },
-    { id:18, name:'리플',                        cat:'가상화폐',  amount:44.3143,      owner:'me',  profit:-10.6785,  rate:-19.4,  ticker:'KRW-XRP', qty:197.56725405 },
+    { id:15, name:'비트코인',                    cat:'가상화폐',  amount:335.6198,     owner:'me',  profit:-74.2161,  rate:-18.1 },
+    { id:16, name:'이더리움',                    cat:'가상화폐',  amount:198.8368,     owner:'me',  profit:-51.0648,  rate:-20.4 },
+    { id:17, name:'솔라나',                      cat:'가상화폐',  amount:74.3048,      owner:'me',  profit:-30.6451,  rate:-29.1 },
+    { id:18, name:'리플',                        cat:'가상화폐',  amount:44.3143,      owner:'me',  profit:-10.6785,  rate:-19.4 },
     { id:19, name:'하나은행 마이너스통장',        cat:'대출/부채', amount:-3307.3412,   owner:'me' },
     // 증권 예수금
     { id:77, name:'증권 예수금 (남편)',           cat:'현금',      amount:1727.035,     owner:'me' },
@@ -1040,7 +949,6 @@ document.getElementById('today-date').textContent =
   new Date().toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric',weekday:'short'});
 loadData().then(() => {
   startRealtimeSync();
-  startCryptoPricePolling();
 });
 
 // ── 전체 현황 탭 소유자 필터 ──────────────────────────────
@@ -1063,7 +971,6 @@ function initOverviewListeners() {
 // ── onclick에서 호출되는 함수들을 전역으로 등록 ──────────────
 window.switchTab          = switchTab;
 window.saveSnapshot       = saveSnapshot;
-window.fetchCryptoPrices  = fetchCryptoPrices;
 window.openModal          = openModal;
 window.closeModal         = closeModal;
 window.addAsset           = addAsset;
