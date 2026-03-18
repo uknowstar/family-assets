@@ -156,6 +156,11 @@
   </div>
 
   <div id="tab-overview">
+    <div id="overview-owner-filter" style="display:flex;gap:6px;margin-bottom:1rem;">
+      <button class="of-btn active" data-owner="all">전체</button>
+      <button class="of-btn" data-owner="me">남편</button>
+      <button class="of-btn" data-owner="wife">아내</button>
+    </div>
     <div class="content-grid">
       <div class="card">
         <div class="card-title">자산 구성 <span class="card-sub">(부채 제외)</span></div>
@@ -662,8 +667,14 @@ function updateSummary() {
   }
 }
 
+function getFilteredAssets() {
+  if (ownerFilter === 'all') return assets;
+  return assets.filter(a => a.owner === ownerFilter);
+}
+
 function updateDonut() {
-  const pos = assets.filter(a=>a.amount>0);
+  const filtered = getFilteredAssets();
+  const pos = filtered.filter(a=>a.amount>0);
   const catMap = {};
   pos.forEach(a=>{ catMap[a.cat]=(catMap[a.cat]||0)+a.amount; });
   const labels = Object.keys(catMap);
@@ -687,7 +698,8 @@ function updateDonut() {
 }
 
 function updateCatList() {
-  const pos = assets.filter(a=>a.amount>0);
+  const filtered = getFilteredAssets();
+  const pos = filtered.filter(a=>a.amount>0);
   const catMap = {};
   pos.forEach(a=>{ catMap[a.cat]=(catMap[a.cat]||0)+a.amount; });
   const total = Object.values(catMap).reduce((s,v)=>s+v,0);
@@ -700,7 +712,7 @@ function updateCatList() {
       </div>
     </div>`).join('');
 
-  const debts = assets.filter(a=>a.amount<0);
+  const debts = filtered.filter(a=>a.amount<0);
   const debtEl = document.getElementById('debt-summary');
   debtEl.innerHTML = debts.length ? `<div class="debt-divider">${debts.map(d=>`
     <div class="debt-row">
@@ -712,12 +724,12 @@ function updateCatList() {
 }
 
 function updateAssetList() {
-  // 카테고리 × 소유자 로 묶어서 표시
-  const gross = calcGross(assets);
+  const filtered = getFilteredAssets();
+  const gross = calcGross(filtered);
   const cats = ['부동산','주식/ETF','예금/적금','현금','가상화폐','자동차/기타','대출/부채'];
   let html = '';
   cats.forEach(cat => {
-    const items = assets.filter(a=>a.cat===cat);
+    const items = filtered.filter(a=>a.cat===cat);
     if (!items.length) return;
     const catTotal = items.reduce((s,a)=>s+a.amount,0);
     const meAmt    = items.filter(a=>a.owner==='me'   ).reduce((s,a)=>s+a.amount,0);
@@ -1011,10 +1023,12 @@ function switchTab(tab) {
   if (tab==='tracking') updateSnaps();
   if (tab==='assets')   updateDetailList();
   if (tab==='invest')   { initInvestListeners(); updateInvestTab(); }
+  if (tab==='overview') initOverviewListeners();
 }
 
 function renderAll() {
   updateSummary(); updateDonut(); updateCatList(); updateAssetList(); updateDetailList(); updateSnaps();
+  initOverviewListeners();
 }
 function showToast(msg) {
   const t = document.getElementById('toast');
@@ -1028,6 +1042,23 @@ loadData().then(() => {
   startRealtimeSync();
   startCryptoPricePolling();
 });
+
+// ── 전체 현황 탭 소유자 필터 ──────────────────────────────
+let ownerFilter = 'all';
+
+function filterOwner(o) {
+  ownerFilter = o;
+  document.querySelectorAll('#overview-owner-filter .of-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.owner === o);
+  });
+  updateDonut(); updateCatList(); updateAssetList();
+}
+
+function initOverviewListeners() {
+  document.querySelectorAll('#overview-owner-filter .of-btn').forEach(btn => {
+    btn.addEventListener('click', () => filterOwner(btn.dataset.owner));
+  });
+}
 
 // ── onclick에서 호출되는 함수들을 전역으로 등록 ──────────────
 window.switchTab          = switchTab;
