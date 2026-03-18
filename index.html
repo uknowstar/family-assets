@@ -142,6 +142,7 @@
   <div class="tabs">
     <button class="tab active" onclick="switchTab('overview')">전체 현황</button>
     <button class="tab" onclick="switchTab('assets')">자산 관리</button>
+    <button class="tab" onclick="switchTab('invest')">투자 수익</button>
     <button class="tab" onclick="switchTab('tracking')">일별 트래킹</button>
     <button class="tab" onclick="switchTab('chart')">추이 차트</button>
   </div>
@@ -172,6 +173,32 @@
         <div class="card-title">자산 상세 관리 <span class="card-sub">금액 클릭 후 수정 → Enter</span></div>
         <div id="detail-list"></div>
         <button class="add-btn" onclick="openModal()">+ 자산 추가</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-invest" style="display:none">
+    <div class="content-grid">
+      <div class="card full">
+        <div class="card-title">투자 수익 요약</div>
+        <div id="invest-summary" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:1rem;"></div>
+      </div>
+      <div class="card full">
+        <div class="card-title">
+          종목별 수익률
+          <span class="card-sub">매입가는 자산 관리 탭에서 입력</span>
+        </div>
+        <div id="invest-owner-filter" style="display:flex;gap:6px;margin-bottom:12px;">
+          <button class="of-btn active" onclick="filterInvestOwner('all',this)">전체</button>
+          <button class="of-btn" onclick="filterInvestOwner('me',this)">남편</button>
+          <button class="of-btn" onclick="filterInvestOwner('wife',this)">아내</button>
+        </div>
+        <div id="invest-sort" style="display:flex;gap:6px;margin-bottom:12px;">
+          <button class="of-btn active" onclick="sortInvest('rate',this)">수익률순</button>
+          <button class="of-btn" onclick="sortInvest('amount',this)">평가금액순</button>
+          <button class="of-btn" onclick="sortInvest('profit',this)">수익금액순</button>
+        </div>
+        <div id="invest-list"></div>
       </div>
     </div>
   </div>
@@ -207,8 +234,6 @@
       </div>
     </div>
   </div>
-
-</div>
 
 <div class="modal-overlay" id="modal">
   <div class="modal-bg" onclick="closeModal()"></div>
@@ -403,97 +428,91 @@ function startRealtimeSync() {
   });
 }
 
-/* 기본 데이터 — 뱅크샐러드 기준 2025-03-18 */
+/* 기본 데이터 — 뱅크샐러드 기준 2026-03-18 */
 function defaultAssets() {
   return [
     // ── 남편 ──────────────────────────────────
-    // 예금/적금
     { id:1,  name:'우리꿈 저축예금',             cat:'예금/적금', amount:13.5675,     owner:'me' },
     { id:2,  name:'달달하나적금',                cat:'예금/적금', amount:70,           owner:'me' },
-    // 주식/ETF (개별종목 → 카테고리 합산용으로 보관)
-    { id:3,  name:'엔비디아',                    cat:'주식/ETF',  amount:787.4544,     owner:'me' },
-    { id:4,  name:'테슬라',                      cat:'주식/ETF',  amount:3694.7192,    owner:'me' },
-    { id:5,  name:'스트래티지',                  cat:'주식/ETF',  amount:179.4379,     owner:'me' },
-    { id:6,  name:'QQQ 레버리지 3배',            cat:'주식/ETF',  amount:3306.4913,    owner:'me' },
-    { id:7,  name:'미국 배당주 슈왑 ETF',        cat:'주식/ETF',  amount:3875.6601,    owner:'me' },
-    { id:8,  name:'마이크로소프트',              cat:'주식/ETF',  amount:417.2920,     owner:'me' },
-    { id:9,  name:'TIGER 미국S&P500',            cat:'주식/ETF',  amount:456.1360,     owner:'me' },
-    { id:10, name:'TIGER 미국나스닥100',          cat:'주식/ETF',  amount:424.8140,     owner:'me' },
-    { id:11, name:'TIGER 인도니프티50',           cat:'주식/ETF',  amount:29.2100,      owner:'me' },
-    { id:12, name:'삼성신종종류형MMF',            cat:'주식/ETF',  amount:2.6385,       owner:'me' },
+    { id:3,  name:'엔비디아',                    cat:'주식/ETF',  amount:787.4544,     owner:'me',  profit:15.8851,   rate:2.05 },
+    { id:4,  name:'테슬라',                      cat:'주식/ETF',  amount:3694.7192,    owner:'me',  profit:310.8128,  rate:9.18 },
+    { id:5,  name:'스트래티지',                  cat:'주식/ETF',  amount:179.4379,     owner:'me',  profit:-120.1009, rate:-40.09 },
+    { id:6,  name:'QQQ 레버리지 3배',            cat:'주식/ETF',  amount:3306.4913,    owner:'me',  profit:-63.1638,  rate:-1.87 },
+    { id:7,  name:'미국 배당주 슈왑 ETF',        cat:'주식/ETF',  amount:3875.6601,    owner:'me',  profit:482.1096,  rate:14.20 },
+    { id:8,  name:'마이크로소프트',              cat:'주식/ETF',  amount:417.2920,     owner:'me',  profit:-80.3334,  rate:-16.14 },
+    { id:9,  name:'TIGER 미국S&P500',            cat:'주식/ETF',  amount:456.1360,     owner:'me',  profit:1.9756,    rate:0.43 },
+    { id:10, name:'TIGER 미국나스닥100',          cat:'주식/ETF',  amount:424.8140,     owner:'me',  profit:1.5346,    rate:0.36 },
+    { id:11, name:'TIGER 인도니프티50',           cat:'주식/ETF',  amount:29.2100,      owner:'me',  profit:-3.4034,   rate:-10.43 },
+    { id:12, name:'삼성신종종류형MMF',            cat:'주식/ETF',  amount:2.6385,       owner:'me',  profit:0.0027,    rate:0.10 },
     { id:13, name:'중개형ISA (남편)',             cat:'주식/ETF',  amount:0.2537,       owner:'me' },
     { id:14, name:'키움4차산업혁명ETF',           cat:'주식/ETF',  amount:0.0662,       owner:'me' },
-    // 가상화폐
-    { id:15, name:'비트코인',                    cat:'가상화폐',  amount:335.6198,     owner:'me' },
-    { id:16, name:'이더리움',                    cat:'가상화폐',  amount:198.8368,     owner:'me' },
-    { id:17, name:'솔라나',                      cat:'가상화폐',  amount:74.3048,      owner:'me' },
-    { id:18, name:'리플',                        cat:'가상화폐',  amount:44.3143,      owner:'me' },
-    // 대출
+    { id:15, name:'비트코인',                    cat:'가상화폐',  amount:335.6198,     owner:'me',  profit:-74.2161,  rate:-18.1 },
+    { id:16, name:'이더리움',                    cat:'가상화폐',  amount:198.8368,     owner:'me',  profit:-51.0648,  rate:-20.4 },
+    { id:17, name:'솔라나',                      cat:'가상화폐',  amount:74.3048,      owner:'me',  profit:-30.6451,  rate:-29.1 },
+    { id:18, name:'리플',                        cat:'가상화폐',  amount:44.3143,      owner:'me',  profit:-10.6785,  rate:-19.4 },
     { id:19, name:'하나은행 마이너스통장',        cat:'대출/부채', amount:-3307.3412,   owner:'me' },
-
+    // 증권 예수금
+    { id:77, name:'증권 예수금 (남편)',           cat:'현금',      amount:1727.035,     owner:'me' },
     // ── 아내 ──────────────────────────────────
-    // 부동산
     { id:20, name:'아파트 (윤호별)',             cat:'부동산',    amount:112000,       owner:'wife' },
-    // 현금/계좌
     { id:21, name:'KB마이핏통장',               cat:'현금',      amount:909.1718,     owner:'wife' },
     { id:22, name:'세이프박스',                 cat:'현금',      amount:2090.1049,    owner:'wife' },
     { id:23, name:'우리SUPER주거래통장',        cat:'현금',      amount:311.1083,     owner:'wife' },
     { id:24, name:'출자금',                     cat:'현금',      amount:499.78,       owner:'wife' },
     { id:25, name:'기타 소액 계좌',             cat:'현금',      amount:1.7097,       owner:'wife' },
-    // 예금/적금
     { id:26, name:'유니온정기예탁금 ①',         cat:'예금/적금', amount:1113.3084,    owner:'wife' },
     { id:27, name:'유니온정기예탁금 ②',         cat:'예금/적금', amount:3000,         owner:'wife' },
-    // 주식/ETF
-    { id:28, name:'ProShares QQQ 3배 ETF',      cat:'주식/ETF',  amount:819.4348,     owner:'wife' },
-    { id:29, name:'GraniteShares 엔비디아 2X',  cat:'주식/ETF',  amount:405.8667,     owner:'wife' },
-    { id:30, name:'Vanguard S&P 500 ETF',       cat:'주식/ETF',  amount:1012.7995,    owner:'wife' },
-    { id:31, name:'애플',                       cat:'주식/ETF',  amount:758.8918,     owner:'wife' },
-    { id:32, name:'삼성전자',                   cat:'주식/ETF',  amount:612,          owner:'wife' },
-    { id:33, name:'마이크로소프트 (아내)',       cat:'주식/ETF',  amount:536.5183,     owner:'wife' },
-    { id:34, name:'NAVER',                      cat:'주식/ETF',  amount:226.5,        owner:'wife' },
-    { id:35, name:'Direxion 테슬라 2X ETF',     cat:'주식/ETF',  amount:1692.7439,    owner:'wife' },
-    { id:36, name:'ProShares QQQ 2배 ETF',      cat:'주식/ETF',  amount:329.2596,     owner:'wife' },
-    { id:37, name:'아마존닷컴',                 cat:'주식/ETF',  amount:706.6234,     owner:'wife' },
-    { id:38, name:'SK하이닉스',                 cat:'주식/ETF',  amount:201,          owner:'wife' },
-    { id:39, name:'Direxion 헬스케어 3X ETF',   cat:'주식/ETF',  amount:639.77,       owner:'wife' },
-    { id:40, name:'월트 디즈니',                cat:'주식/ETF',  amount:119.7606,     owner:'wife' },
-    { id:41, name:'코미팜',                     cat:'주식/ETF',  amount:153.264,      owner:'wife' },
-    { id:42, name:'삼성전자우',                 cat:'주식/ETF',  amount:277.4,        owner:'wife' },
-    { id:43, name:'엔비디아 (아내)',             cat:'주식/ETF',  amount:108.6144,     owner:'wife' },
-    { id:44, name:'유나이티드헬스 그룹',        cat:'주식/ETF',  amount:643.8103,     owner:'wife' },
-    { id:45, name:'카카오',                     cat:'주식/ETF',  amount:15.51,        owner:'wife' },
-    { id:46, name:'LG전자',                     cat:'주식/ETF',  amount:47.56,        owner:'wife' },
-    { id:47, name:'아메리칸 에어라인스',        cat:'주식/ETF',  amount:27.5551,      owner:'wife' },
-    { id:48, name:'알파벳 Class A',             cat:'주식/ETF',  amount:185.623,      owner:'wife' },
-    { id:49, name:'LG화학',                     cat:'주식/ETF',  amount:31.5,         owner:'wife' },
-    { id:50, name:'에스디바이오센서',           cat:'주식/ETF',  amount:0.811,        owner:'wife' },
-    { id:51, name:'테슬라 (아내)',              cat:'주식/ETF',  amount:595.9225,     owner:'wife' },
-    { id:52, name:'iShares 20+년 미국국채',     cat:'주식/ETF',  amount:313.2522,     owner:'wife' },
-    { id:53, name:'룰루레몬 애슬레티카',        cat:'주식/ETF',  amount:285.2583,     owner:'wife' },
-    { id:54, name:'Schwab 미국 배당주 ETF',     cat:'주식/ETF',  amount:249.4465,     owner:'wife' },
-    { id:55, name:'TIGER 조선TOP10',            cat:'주식/ETF',  amount:147.75,       owner:'wife' },
-    { id:56, name:'Financial Select Sector',    cat:'주식/ETF',  amount:147.9396,     owner:'wife' },
-    { id:57, name:'KODEX 방산TOP10',            cat:'주식/ETF',  amount:142.65,       owner:'wife' },
-    { id:58, name:'DXN PANW BUL ETF',           cat:'주식/ETF',  amount:136.6307,     owner:'wife' },
-    { id:59, name:'비트마인 이머전 테크놀로지', cat:'주식/ETF',  amount:48.5401,      owner:'wife' },
-    { id:60, name:'퀀텀 컴퓨팅',               cat:'주식/ETF',  amount:37.1371,      owner:'wife' },
-    { id:61, name:'ARK Innovation 액티브 ETF',  cat:'주식/ETF',  amount:21.8088,      owner:'wife' },
-    { id:62, name:'아이온큐',                   cat:'주식/ETF',  amount:4.9716,       owner:'wife' },
-    { id:63, name:'TIGER 미국나스닥100 (아내)', cat:'주식/ETF',  amount:163.655,      owner:'wife' },
-    { id:64, name:'KODEX 미국S&P500헬스케어',  cat:'주식/ETF',  amount:134.2,        owner:'wife' },
-    { id:65, name:'TIGER 미국배당다우존스',     cat:'주식/ETF',  amount:132.9965,     owner:'wife' },
-    { id:66, name:'SOL 미국AI전력인프라',       cat:'주식/ETF',  amount:92.665,       owner:'wife' },
-    { id:67, name:'1Q 미국우주항공테크',        cat:'주식/ETF',  amount:87.72,        owner:'wife' },
-    { id:68, name:'TIGER 미국S&P500 (아내)',    cat:'주식/ETF',  amount:64.532,       owner:'wife' },
-    { id:69, name:'SOL 조선TOP3플러스',         cat:'주식/ETF',  amount:7.521,        owner:'wife' },
-    { id:70, name:'HANARO 원자력iSelect',       cat:'주식/ETF',  amount:7.0215,       owner:'wife' },
-    { id:71, name:'SOL K방산',                  cat:'주식/ETF',  amount:3.847,        owner:'wife' },
-    { id:72, name:'삼성전자 (미래에셋)',        cat:'주식/ETF',  amount:204,          owner:'wife' },
-    { id:73, name:'SK하이닉스 (미래에셋)',      cat:'주식/ETF',  amount:201,          owner:'wife' },
-    { id:74, name:'LIG넥스원',                  cat:'주식/ETF',  amount:138.2,        owner:'wife' },
+    { id:28, name:'ProShares QQQ 3배 ETF',      cat:'주식/ETF',  amount:819.4348,     owner:'wife', profit:154.1197,  rate:23.16 },
+    { id:29, name:'GraniteShares 엔비디아 2X',  cat:'주식/ETF',  amount:405.8667,     owner:'wife', profit:26.6619,   rate:7.03 },
+    { id:30, name:'Vanguard S&P 500 ETF',       cat:'주식/ETF',  amount:1012.7995,    owner:'wife', profit:171.5589,  rate:20.39 },
+    { id:31, name:'애플',                       cat:'주식/ETF',  amount:758.8918,     owner:'wife', profit:345.1957,  rate:83.44 },
+    { id:32, name:'삼성전자',                   cat:'주식/ETF',  amount:612,          owner:'wife', profit:407.9649,  rate:199.94 },
+    { id:33, name:'마이크로소프트 (아내)',       cat:'주식/ETF',  amount:536.5183,     owner:'wife', profit:104.3125,  rate:24.13 },
+    { id:34, name:'NAVER',                      cat:'주식/ETF',  amount:226.5,        owner:'wife', profit:-138.4231, rate:-37.93 },
+    { id:35, name:'Direxion 테슬라 2X ETF',     cat:'주식/ETF',  amount:1692.7439,    owner:'wife', profit:383.6673,  rate:29.30 },
+    { id:36, name:'ProShares QQQ 2배 ETF',      cat:'주식/ETF',  amount:329.2596,     owner:'wife', profit:143.9065,  rate:77.63 },
+    { id:37, name:'아마존닷컴',                 cat:'주식/ETF',  amount:706.6234,     owner:'wife', profit:32.425,    rate:4.80 },
+    { id:38, name:'SK하이닉스',                 cat:'주식/ETF',  amount:201,          owner:'wife', profit:178.2366,  rate:782.99 },
+    { id:39, name:'Direxion 헬스케어 3X ETF',   cat:'주식/ETF',  amount:639.77,       owner:'wife', profit:182.7814,  rate:39.99 },
+    { id:40, name:'월트 디즈니',                cat:'주식/ETF',  amount:119.7606,     owner:'wife', profit:-21.5194,  rate:-15.23 },
+    { id:41, name:'코미팜',                     cat:'주식/ETF',  amount:153.264,      owner:'wife', profit:-233.452,  rate:-60.36 },
+    { id:42, name:'삼성전자우',                 cat:'주식/ETF',  amount:277.4,        owner:'wife', profit:165.0301,  rate:146.86 },
+    { id:43, name:'엔비디아 (아내)',             cat:'주식/ETF',  amount:108.6144,     owner:'wife', profit:25.5231,   rate:30.71 },
+    { id:44, name:'유나이티드헬스 그룹',        cat:'주식/ETF',  amount:643.8103,     owner:'wife', profit:31.3639,   rate:5.12 },
+    { id:45, name:'카카오',                     cat:'주식/ETF',  amount:15.51,        owner:'wife', profit:-11.5068,  rate:-42.59 },
+    { id:46, name:'LG전자',                     cat:'주식/ETF',  amount:47.56,        owner:'wife', profit:-0.24,     rate:-0.50 },
+    { id:47, name:'아메리칸 에어라인스',        cat:'주식/ETF',  amount:27.5551,      owner:'wife', profit:-6.6268,   rate:-19.38 },
+    { id:48, name:'알파벳 Class A',             cat:'주식/ETF',  amount:185.623,      owner:'wife', profit:32.9725,   rate:21.59 },
+    { id:49, name:'LG화학',                     cat:'주식/ETF',  amount:31.5,         owner:'wife', profit:-22.0,     rate:-41.12 },
+    { id:50, name:'에스디바이오센서',           cat:'주식/ETF',  amount:0.811,        owner:'wife', profit:-4.389,    rate:-84.40 },
+    { id:51, name:'테슬라 (아내)',              cat:'주식/ETF',  amount:595.9225,     owner:'wife', profit:6.7554,    rate:1.14 },
+    { id:52, name:'iShares 20+년 미국국채',     cat:'주식/ETF',  amount:313.2522,     owner:'wife', profit:29.034,    rate:10.21 },
+    { id:53, name:'룰루레몬 애슬레티카',        cat:'주식/ETF',  amount:285.2583,     owner:'wife', profit:10.3788,   rate:3.77 },
+    { id:54, name:'Schwab 미국 배당주 ETF',     cat:'주식/ETF',  amount:249.4465,     owner:'wife', profit:46.7061,   rate:23.03 },
+    { id:55, name:'TIGER 조선TOP10',            cat:'주식/ETF',  amount:147.75,       owner:'wife', profit:5.465,     rate:3.84 },
+    { id:56, name:'Financial Select Sector',    cat:'주식/ETF',  amount:147.9396,     owner:'wife', profit:-6.2595,   rate:-4.05 },
+    { id:57, name:'KODEX 방산TOP10',            cat:'주식/ETF',  amount:142.65,       owner:'wife', profit:45.05,     rate:46.15 },
+    { id:58, name:'DXN PANW BUL ETF',           cat:'주식/ETF',  amount:136.6307,     owner:'wife', profit:-53.3029,  rate:-28.06 },
+    { id:59, name:'비트마인 이머전 테크놀로지', cat:'주식/ETF',  amount:48.5401,      owner:'wife', profit:-2.8231,   rate:-5.49 },
+    { id:60, name:'퀀텀 컴퓨팅',               cat:'주식/ETF',  amount:37.1371,      owner:'wife', profit:-26.6834,  rate:-41.81 },
+    { id:61, name:'ARK Innovation 액티브 ETF',  cat:'주식/ETF',  amount:21.8088,      owner:'wife', profit:1.1622,    rate:5.62 },
+    { id:62, name:'아이온큐',                   cat:'주식/ETF',  amount:4.9716,       owner:'wife', profit:-0.4613,   rate:-8.49 },
+    { id:63, name:'TIGER 미국나스닥100 (아내)', cat:'주식/ETF',  amount:163.655,      owner:'wife', profit:1.855,     rate:1.14 },
+    { id:64, name:'KODEX 미국S&P500헬스케어',  cat:'주식/ETF',  amount:134.2,        owner:'wife', profit:23.95,     rate:21.72 },
+    { id:65, name:'TIGER 미국배당다우존스',     cat:'주식/ETF',  amount:132.9965,     owner:'wife', profit:20.4766,   rate:18.19 },
+    { id:66, name:'SOL 미국AI전력인프라',       cat:'주식/ETF',  amount:92.665,       owner:'wife', profit:9.8621,    rate:11.91 },
+    { id:67, name:'1Q 미국우주항공테크',        cat:'주식/ETF',  amount:87.72,        owner:'wife', profit:-7.2634,   rate:-7.64 },
+    { id:68, name:'TIGER 미국S&P500 (아내)',    cat:'주식/ETF',  amount:64.532,       owner:'wife', profit:15.301,    rate:31.08 },
+    { id:69, name:'SOL 조선TOP3플러스',         cat:'주식/ETF',  amount:7.521,        owner:'wife', profit:1.604,     rate:27.10 },
+    { id:70, name:'HANARO 원자력iSelect',       cat:'주식/ETF',  amount:7.0215,       owner:'wife', profit:3.3805,    rate:92.84 },
+    { id:71, name:'SOL K방산',                  cat:'주식/ETF',  amount:3.847,        owner:'wife', profit:2.847,     rate:284.70 },
+    { id:72, name:'삼성전자 (미래에셋)',        cat:'주식/ETF',  amount:204,          owner:'wife', profit:17.7,      rate:9.50 },
+    { id:73, name:'SK하이닉스 (미래에셋)',      cat:'주식/ETF',  amount:201,          owner:'wife', profit:17.2,      rate:9.35 },
+    { id:74, name:'LIG넥스원',                  cat:'주식/ETF',  amount:138.2,        owner:'wife', profit:-10.8,     rate:-7.24 },
     { id:75, name:'중개형ISA (아내)',            cat:'주식/ETF',  amount:2.6525,       owner:'wife' },
-    // 대출
     { id:76, name:'KB 아파트담보대출',          cat:'대출/부채', amount:-49014.942,   owner:'wife' },
+    // 증권 예수금
+    { id:78, name:'증권 예수금 (아내)',           cat:'현금',      amount:2462.4712,    owner:'wife' },
   ];
 }
 
@@ -632,9 +651,104 @@ function updateAssetList() {
 function wonToMan(won) { return won / 10000; }
 function manToWon(man) { return Math.round(man * 10000); }
 function fmtWon(man) {
-  // 만원 단위 값을 원 단위 콤마 문자열로 변환
   const won = Math.round(man * 10000);
   return (won < 0 ? '-' : '') + Math.abs(won).toLocaleString('ko-KR');
+}
+
+// ── 투자 탭 상태 ──────────────────────────────────────────
+let investOwnerFilter = 'all';
+let investSortKey = 'rate';
+
+function updateInvestTab() {
+  const investAssets = assets.filter(a =>
+    (a.cat === '주식/ETF' || a.cat === '가상화폐') && a.amount > 0
+  );
+  const filtered = investOwnerFilter === 'all'
+    ? investAssets
+    : investAssets.filter(a => a.owner === investOwnerFilter);
+
+  const withData  = filtered.filter(a => a.profit !== undefined);
+  const totalVal  = filtered.reduce((s,a) => s + a.amount, 0);
+  const totalProfit = withData.reduce((s,a) => s + (a.profit||0), 0);
+  const totalCost   = withData.reduce((s,a) => s + (a.amount - (a.profit||0)), 0);
+  const totalRate   = totalCost > 0 ? (totalProfit / totalCost * 100) : 0;
+  const winners = withData.filter(a => a.profit > 0).length;
+  const losers  = withData.filter(a => a.profit < 0).length;
+
+  // 요약 카드
+  document.getElementById('invest-summary').innerHTML = `
+    <div class="metric-card">
+      <div class="metric-label">총 평가금액</div>
+      <div class="metric-value">${fmtW(totalVal)}</div>
+      <div class="metric-sub neutral">${filtered.length}개 종목</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">총 수익금액</div>
+      <div class="metric-value ${totalProfit >= 0 ? 'up' : 'down'}">${totalProfit >= 0 ? '+' : ''}${fmtW(totalProfit)}</div>
+      <div class="metric-sub ${totalProfit >= 0 ? 'up' : 'down'}">${totalRate >= 0 ? '+' : ''}${totalRate.toFixed(2)}%</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">수익 / 손실 종목</div>
+      <div class="metric-value"><span class="up">+${winners}</span> / <span class="down">-${losers}</span></div>
+      <div class="metric-sub neutral">수익률 데이터 ${withData.length}개</div>
+    </div>`;
+
+  // 정렬
+  const sorted = [...filtered].sort((a, b) => {
+    const ar = a.rate  ?? 0, br = b.rate  ?? 0;
+    const ap = a.profit ?? 0, bp = b.profit ?? 0;
+    if (investSortKey === 'rate')   return br - ar;
+    if (investSortKey === 'amount') return b.amount - a.amount;
+    if (investSortKey === 'profit') return bp - ap;
+    return 0;
+  });
+
+  // 종목 목록
+  document.getElementById('invest-list').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 55px 120px 120px 110px;gap:0;padding:6px 8px;border-bottom:0.5px solid var(--border-md);">
+      <span style="font-size:11px;color:var(--text-secondary);font-weight:500;">종목명</span>
+      <span style="font-size:11px;color:var(--text-secondary);font-weight:500;">소유</span>
+      <span style="font-size:11px;color:var(--text-secondary);font-weight:500;text-align:right;">평가금액</span>
+      <span style="font-size:11px;color:var(--text-secondary);font-weight:500;text-align:right;">수익금액</span>
+      <span style="font-size:11px;color:var(--text-secondary);font-weight:500;text-align:right;">수익률</span>
+    </div>
+    ${sorted.map(a => {
+      const profit = a.profit;
+      const rate   = a.rate;
+      const hasData = profit !== undefined && rate !== undefined;
+      const cls = !hasData ? 'neutral' : profit >= 0 ? 'up' : 'down';
+      return `
+      <div style="display:grid;grid-template-columns:1fr 55px 120px 120px 110px;gap:0;align-items:center;padding:8px 8px;border-bottom:0.5px solid var(--border);">
+        <span style="font-size:13px;display:flex;align-items:center;gap:6px;min-width:0;">
+          <span class="dot" style="background:${catColors[a.cat]||'#888'};flex-shrink:0;"></span>
+          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${a.name}</span>
+        </span>
+        <span><span class="badge ${a.owner==='wife'?'b-wife':a.owner==='joint'?'b-joint':'b-me'}">${ownerLabel[a.owner]}</span></span>
+        <span style="text-align:right;font-size:13px;font-weight:500;">${fmtW(a.amount)}</span>
+        <span style="text-align:right;font-size:13px;font-weight:500;" class="${cls}">
+          ${hasData ? (profit >= 0 ? '+' : '') + fmtW(profit) : '-'}
+        </span>
+        <span style="text-align:right;">
+          ${hasData
+            ? `<span style="font-size:13px;font-weight:500;" class="${cls}">${rate >= 0 ? '+' : ''}${rate.toFixed(2)}%</span>`
+            : `<span style="font-size:12px;color:var(--text-secondary);">-</span>`}
+        </span>
+      </div>`;
+    }).join('')}`;
+}
+
+function filterInvestOwner(o, btn) {
+  investOwnerFilter = o;
+  document.querySelectorAll('#invest-owner-filter .of-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  updateInvestTab();
+}
+
+function sortInvest(key, btn) {
+  investSortKey = key;
+  document.querySelectorAll('#invest-sort .of-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  updateInvestTab();
 }
 
 function updateDetailList() {
@@ -668,7 +782,7 @@ function updateDetailList() {
 
 function formatInp(el) {
   const raw = parseInt(el.value.replace(/[^-0-9]/g,'')) || 0;
-  el.value = (raw < 0 ? '-' : '') + Math.abs(raw).toLocaleString('ko-KR');
+  el.value = raw === 0 ? '' : (raw < 0 ? '-' : '') + Math.abs(raw).toLocaleString('ko-KR');
 }
 
 async function updateAmtWon(id, val) {
@@ -776,15 +890,16 @@ async function updateAmt(id, val) {
 }
 
 function switchTab(tab) {
-  ['overview','assets','tracking','chart'].forEach(t=>{
+  ['overview','assets','invest','tracking','chart'].forEach(t=>{
     document.getElementById('tab-'+t).style.display = t===tab ? '' : 'none';
   });
   document.querySelectorAll('.tab').forEach((el,i)=>{
-    el.classList.toggle('active', ['overview','assets','tracking','chart'][i]===tab);
+    el.classList.toggle('active', ['overview','assets','invest','tracking','chart'][i]===tab);
   });
   if (tab==='chart')    setTimeout(updateCharts, 60);
   if (tab==='tracking') updateSnaps();
   if (tab==='assets')   updateDetailList();
+  if (tab==='invest')   updateInvestTab();
 }
 
 function renderAll() {
@@ -801,17 +916,19 @@ document.getElementById('today-date').textContent =
 loadData().then(() => startRealtimeSync());
 
 // ── onclick에서 호출되는 함수들을 전역으로 등록 ──────────────
-window.switchTab     = switchTab;
-window.saveSnapshot  = saveSnapshot;
-window.openModal     = openModal;
-window.closeModal    = closeModal;
-window.addAsset      = addAsset;
-window.removeAsset   = removeAsset;
-window.updateAmt     = updateAmt;
-window.updateAmtWon  = updateAmtWon;
-window.formatInp     = formatInp;
-window.deleteSnap    = deleteSnap;
-window.filterOwner   = filterOwner;
+window.switchTab          = switchTab;
+window.saveSnapshot       = saveSnapshot;
+window.openModal          = openModal;
+window.closeModal         = closeModal;
+window.addAsset           = addAsset;
+window.removeAsset        = removeAsset;
+window.updateAmt          = updateAmt;
+window.updateAmtWon       = updateAmtWon;
+window.formatInp          = formatInp;
+window.deleteSnap         = deleteSnap;
+window.filterOwner        = filterOwner;
+window.filterInvestOwner  = filterInvestOwner;
+window.sortInvest         = sortInvest;
 </script>
 </body>
 </html>
