@@ -243,9 +243,29 @@
 
 <div class="toast" id="toast"></div>
 
-<script>
-const ASSETS_KEY = 'fam_assets_v3';
-const SNAPS_KEY  = 'fam_snaps_v3';
+<script type="module">
+// ── Firebase SDK ──────────────────────────────────────────
+import { initializeApp }                          from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, doc, getDoc, setDoc,
+         collection, getDocs, deleteDoc, onSnapshot }
+                                                  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey:            "AIzaSyBsdvbYOTNJTgRRZSaWv2Iq3ioJ2a6XLwI",
+  authDomain:        "family-assets-75884.firebaseapp.com",
+  projectId:         "family-assets-75884",
+  storageBucket:     "family-assets-75884.firebasestorage.app",
+  messagingSenderId: "316701409255",
+  appId:             "1:316701409255:web:f6222acadcaeff32b70742"
+};
+const app = initializeApp(firebaseConfig);
+const db  = getFirestore(app);
+
+// Firestore 경로
+const ASSETS_DOC = doc(db, 'family', 'assets');
+const SNAPS_COL  = collection(db, 'family', 'snapshots', 'items');
+
+// ── 로컬 상태 ─────────────────────────────────────────────
 
 const catColors = {
   '주식/ETF':   '#1D9E75',
@@ -262,12 +282,55 @@ let assets = [];
 let snapshots = [];
 let donutChart = null, histChart = null, stackChart = null;
 
-function loadData() {
-  try { assets    = JSON.parse(localStorage.getItem(ASSETS_KEY)) || defaultAssets(); } catch(e) { assets = defaultAssets(); }
-  try { snapshots = JSON.parse(localStorage.getItem(SNAPS_KEY))  || []; }             catch(e) { snapshots = []; }
+// ── Firebase 데이터 로드/저장 ──────────────────────────────
+async function loadData() {
+  showToast('데이터 불러오는 중...');
+  try {
+    // 자산 목록
+    const aSnap = await getDoc(ASSETS_DOC);
+    assets = aSnap.exists() ? aSnap.data().list : defaultAssets();
+    // 스냅샷 목록
+    const sSnap = await getDocs(SNAPS_COL);
+    snapshots = sSnap.docs.map(d=>d.data()).sort((a,b)=>a.date.localeCompare(b.date));
+  } catch(e) {
+    console.error(e);
+    assets = defaultAssets();
+    snapshots = [];
+    showToast('⚠️ Firebase 연결 실패 — 로컬 데이터로 표시합니다');
+  }
+  renderAll();
 }
-function saveAssets() { localStorage.setItem(ASSETS_KEY, JSON.stringify(assets)); }
-function saveSnaps()  { localStorage.setItem(SNAPS_KEY,  JSON.stringify(snapshots)); }
+
+async function saveAssets() {
+  try { await setDoc(ASSETS_DOC, { list: assets }); }
+  catch(e) { console.error('자산 저장 실패', e); }
+}
+
+async function saveSnap(snap) {
+  try { await setDoc(doc(db,'family','snapshots','items',snap.date), snap); }
+  catch(e) { console.error('스냅샷 저장 실패', e); }
+}
+
+async function deleteSnapFromDB(date) {
+  try { await deleteDoc(doc(db,'family','snapshots','items',date)); }
+  catch(e) { console.error('스냅샷 삭제 실패', e); }
+}
+
+// 실시간 동기화 — 다른 기기에서 변경 시 자동 반영
+function startRealtimeSync() {
+  onSnapshot(ASSETS_DOC, snap => {
+    if (snap.exists()) {
+      assets = snap.data().list;
+      updateSummary(); updateDonut(); updateCatList(); updateAssetList();
+      if (document.getElementById('tab-assets').style.display !== 'none') updateDetailList();
+    }
+  });
+  onSnapshot(SNAPS_COL, snap => {
+    snapshots = snap.docs.map(d=>d.data()).sort((a,b)=>a.date.localeCompare(b.date));
+    updateSummary(); updateSnaps();
+    if (document.getElementById('tab-chart').style.display !== 'none') updateCharts();
+  });
+}
 
 /* 기본 데이터 — 뱅크샐러드 기준 2025-03-18 */
 function defaultAssets() {
@@ -568,7 +631,7 @@ function updateCharts() {
   });
 }
 
-function saveSnapshot() {
+async function saveSnapshot() {
   const dateStr = new Date().toISOString().slice(0,10);
   const net   = calcNet(assets);
   const gross = calcGross(assets);
@@ -576,18 +639,14 @@ function saveSnapshot() {
   const cats  = {};
   assets.filter(a=>a.amount>0).forEach(a=>{ cats[a.cat]=(cats[a.cat]||0)+a.amount; });
   const snap = { date:dateStr, net, gross, debt, cats };
-  const idx  = snapshots.findIndex(s=>s.date===dateStr);
-  if (idx>=0) { snapshots[idx]=snap; showToast('오늘 스냅샷을 업데이트했어요'); }
-  else        { snapshots.push(snap); showToast('스냅샷 저장 완료 (' + dateStr + ')'); }
-  saveSnaps(); updateSummary(); updateSnaps();
-  if (document.getElementById('tab-chart').style.display!=='none') updateCharts();
+  const exists = snapshots.findIndex(s=>s.date===dateStr) >= 0;
+  await saveSnap(snap);
+  showToast(exists ? '오늘 스냅샷을 업데이트했어요' : '스냅샷 저장 완료 (' + dateStr + ')');
 }
 
-function deleteSnap(date) {
+async function deleteSnap(date) {
   if (!confirm(date + ' 스냅샷을 삭제할까요?')) return;
-  snapshots = snapshots.filter(s=>s.date!==date);
-  saveSnaps(); updateSummary(); updateSnaps();
-  if (document.getElementById('tab-chart').style.display!=='none') updateCharts();
+  await deleteSnapFromDB(date);
 }
 
 function openModal()  { document.getElementById('modal').classList.add('open'); }
@@ -596,27 +655,27 @@ function closeModal() {
   document.getElementById('a-name').value = '';
   document.getElementById('a-amount').value = '';
 }
-function addAsset() {
+async function addAsset() {
   const name   = document.getElementById('a-name').value.trim();
   const cat    = document.getElementById('a-cat').value;
   const amount = parseFloat(document.getElementById('a-amount').value);
   const owner  = document.getElementById('a-owner').value;
   if (!name || isNaN(amount)) { showToast('자산명과 금액을 입력해주세요'); return; }
   assets.push({ id:Date.now(), name, cat, amount, owner });
-  saveAssets(); closeModal(); renderAll();
+  await saveAssets(); closeModal(); renderAll();
   showToast(name + ' 추가됐어요');
 }
-function removeAsset(id) {
+async function removeAsset(id) {
   const a = assets.find(a=>a.id===id);
   if (!a || !confirm(`"${a.name}"을 삭제할까요?`)) return;
   assets = assets.filter(a=>a.id!==id);
-  saveAssets(); renderAll();
+  await saveAssets(); renderAll();
 }
-function updateAmt(id, val) {
+async function updateAmt(id, val) {
   const a = assets.find(a=>a.id===id);
   if (!a) return;
   a.amount = parseFloat(val) || 0;
-  saveAssets(); updateSummary(); updateDonut(); updateCatList(); updateAssetList();
+  await saveAssets(); updateSummary(); updateDonut(); updateCatList(); updateAssetList();
 }
 
 function switchTab(tab) {
@@ -642,8 +701,7 @@ function showToast(msg) {
 
 document.getElementById('today-date').textContent =
   new Date().toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric',weekday:'short'});
-loadData();
-renderAll();
+loadData().then(() => startRealtimeSync());
 </script>
 </body>
 </html>
