@@ -226,8 +226,10 @@
       <option value="자동차/기타">자동차/기타</option>
       <option value="대출/부채">대출/부채 (마이너스로 입력)</option>
     </select>
-    <label>금액 (만원 단위, 소수점 가능 / 대출은 마이너스)</label>
-    <input type="number" id="a-amount" step="0.0001" placeholder="예) 3694.72" />
+    <label>금액 (원 단위 / 대출은 마이너스로 입력)</label>
+    <input type="text" inputmode="numeric" id="a-amount" placeholder="예) 36,947,192"
+      onfocus="this.value=this.value.replace(/[^-0-9]/g,'')"
+      onblur="if(this.value){const r=parseInt(this.value.replace(/[^-0-9]/g,''));this.value=(r<0?'-':'')+Math.abs(r).toLocaleString('ko-KR');}" />
     <label>소유자</label>
     <select id="a-owner">
       <option value="me">남편</option>
@@ -558,29 +560,54 @@ function updateAssetList() {
   document.getElementById('asset-list').innerHTML = html;
 }
 
+function wonToMan(won) { return won / 10000; }
+function manToWon(man) { return Math.round(man * 10000); }
+function fmtWon(man) {
+  // 만원 단위 값을 원 단위 콤마 문자열로 변환
+  const won = Math.round(man * 10000);
+  return (won < 0 ? '-' : '') + Math.abs(won).toLocaleString('ko-KR');
+}
+
 function updateDetailList() {
   document.getElementById('detail-list').innerHTML = `
-    <table class="detail-table">
-      <thead><tr>
-        <th>자산명</th><th>카테고리</th><th>소유</th>
-        <th style="text-align:right">금액(만원)</th><th></th>
-      </tr></thead>
-      <tbody>${assets.map(a=>`
-        <tr>
-          <td style="display:flex;align-items:center;gap:6px;">
-            <span class="dot" style="background:${catColors[a.cat]||'#888'}"></span>${a.name}
-          </td>
-          <td style="color:var(--text-secondary);font-size:12px">${a.cat}</td>
-          <td><span class="badge ${a.cat==='대출/부채'?'b-debt':a.owner==='wife'?'b-wife':a.owner==='joint'?'b-joint':'b-me'}">${a.cat==='대출/부채'?'부채':ownerLabel[a.owner]}</span></td>
-          <td style="text-align:right">
-            <input class="edit-inp" type="number" step="0.0001" value="${a.amount}"
-              onchange="updateAmt(${a.id},this.value)"
-              style="color:${a.amount<0?'#A32D2D':'var(--text-primary)'}"/>
-          </td>
-          <td style="text-align:right"><button class="del-btn" onclick="removeAsset(${a.id})">삭제</button></td>
-        </tr>`).join('')}
-      </tbody>
-    </table>`;
+    <div style="display:grid;grid-template-columns:1fr 90px 60px 160px 36px;gap:0;border-bottom:0.5px solid var(--border-md);padding:6px 8px;">
+      <span style="font-size:11px;color:var(--text-secondary);font-weight:500;">자산명</span>
+      <span style="font-size:11px;color:var(--text-secondary);font-weight:500;">카테고리</span>
+      <span style="font-size:11px;color:var(--text-secondary);font-weight:500;">소유</span>
+      <span style="font-size:11px;color:var(--text-secondary);font-weight:500;text-align:right;padding-right:8px;">금액 (원)</span>
+      <span></span>
+    </div>
+    ${assets.map(a=>`
+    <div style="display:grid;grid-template-columns:1fr 90px 60px 160px 36px;gap:0;align-items:center;padding:7px 8px;border-bottom:0.5px solid var(--border);">
+      <span style="font-size:13px;display:flex;align-items:center;gap:6px;min-width:0;">
+        <span class="dot" style="background:${catColors[a.cat]||'#888'};flex-shrink:0;"></span>
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${a.name}</span>
+      </span>
+      <span style="font-size:11px;color:var(--text-secondary);">${a.cat}</span>
+      <span><span class="badge ${a.cat==='대출/부채'?'b-debt':a.owner==='wife'?'b-wife':a.owner==='joint'?'b-joint':'b-me'}">${a.cat==='대출/부채'?'부채':ownerLabel[a.owner]}</span></span>
+      <span style="text-align:right;padding-right:4px;">
+        <input class="edit-inp" type="text" inputmode="numeric"
+          value="${fmtWon(a.amount)}"
+          style="color:${a.amount<0?'#A32D2D':'var(--text-primary)'};width:150px;text-align:right;"
+          onfocus="this.value=this.value.replace(/[^-0-9]/g,'')"
+          onblur="formatInp(this)"
+          onchange="updateAmtWon(${a.id}, this.value)" />
+      </span>
+      <span style="text-align:right;"><button class="del-btn" onclick="removeAsset(${a.id})">삭제</button></span>
+    </div>`).join('')}`;
+}
+
+function formatInp(el) {
+  const raw = parseInt(el.value.replace(/[^-0-9]/g,'')) || 0;
+  el.value = (raw < 0 ? '-' : '') + Math.abs(raw).toLocaleString('ko-KR');
+}
+
+async function updateAmtWon(id, val) {
+  const a = assets.find(a=>a.id===id);
+  if (!a) return;
+  const won = parseInt(val.replace(/[^-0-9]/g,'')) || 0;
+  a.amount = wonToMan(won);
+  await saveAssets(); updateSummary(); updateDonut(); updateCatList(); updateAssetList();
 }
 
 function updateSnaps() {
@@ -658,10 +685,11 @@ function closeModal() {
 async function addAsset() {
   const name   = document.getElementById('a-name').value.trim();
   const cat    = document.getElementById('a-cat').value;
-  const amount = parseFloat(document.getElementById('a-amount').value);
+  const raw    = document.getElementById('a-amount').value.replace(/[^-0-9]/g,'');
+  const won    = parseInt(raw);
   const owner  = document.getElementById('a-owner').value;
-  if (!name || isNaN(amount)) { showToast('자산명과 금액을 입력해주세요'); return; }
-  assets.push({ id:Date.now(), name, cat, amount, owner });
+  if (!name || isNaN(won)) { showToast('자산명과 금액을 입력해주세요'); return; }
+  assets.push({ id:Date.now(), name, cat, amount: wonToMan(won), owner });
   await saveAssets(); closeModal(); renderAll();
   showToast(name + ' 추가됐어요');
 }
@@ -711,6 +739,8 @@ window.closeModal    = closeModal;
 window.addAsset      = addAsset;
 window.removeAsset   = removeAsset;
 window.updateAmt     = updateAmt;
+window.updateAmtWon  = updateAmtWon;
+window.formatInp     = formatInp;
 window.deleteSnap    = deleteSnap;
 window.filterOwner   = filterOwner;
 </script>
