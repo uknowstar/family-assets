@@ -702,6 +702,17 @@ function showToast(msg) {
 document.getElementById('today-date').textContent =
   new Date().toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric',weekday:'short'});
 loadData().then(() => startRealtimeSync());
+
+// ── onclick에서 호출되는 함수들을 전역으로 등록 ──────────────
+window.switchTab     = switchTab;
+window.saveSnapshot  = saveSnapshot;
+window.openModal     = openModal;
+window.closeModal    = closeModal;
+window.addAsset      = addAsset;
+window.removeAsset   = removeAsset;
+window.updateAmt     = updateAmt;
+window.deleteSnap    = deleteSnap;
+window.filterOwner   = filterOwner;
 </script>
 </body>
 </html>
