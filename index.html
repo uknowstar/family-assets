@@ -149,8 +149,56 @@
     <button class="tab active" onclick="switchTab('overview')">전체 현황</button>
     <button class="tab" onclick="switchTab('assets')">자산 관리</button>
     <button class="tab" onclick="switchTab('invest')">투자 수익</button>
+    <button class="tab" onclick="switchTab('ledger')">가계부</button>
     <button class="tab" onclick="switchTab('tracking')">일별 트래킹</button>
     <button class="tab" onclick="switchTab('chart')">추이 차트</button>
+  </div>
+
+  <!-- 가계부 탭 -->
+  <div id="tab-ledger" style="display:none">
+    <div style="display:flex;gap:6px;margin-bottom:1rem;flex-wrap:wrap;align-items:center;justify-content:space-between;">
+      <div id="ledger-person-filter" style="display:flex;gap:6px;">
+        <button class="of-btn active" data-person="both">전체</button>
+        <button class="of-btn" data-person="yunho">윤호</button>
+        <button class="of-btn" data-person="byeol">별</button>
+      </div>
+      <div id="ledger-month-filter" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+    </div>
+    <!-- 요약 카드 -->
+    <div id="ledger-summary" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px;"></div>
+    <div class="content-grid">
+      <!-- 월별 수입/지출 차트 -->
+      <div class="card full">
+        <div class="card-title">월별 수입 / 지출</div>
+        <div style="position:relative;width:100%;height:260px;"><canvas id="ledger-bar-chart"></canvas></div>
+      </div>
+      <!-- 카테고리별 지출 -->
+      <div class="card">
+        <div class="card-title">카테고리별 지출 <span class="card-sub" id="ledger-period-label"></span></div>
+        <div id="ledger-cat-list"></div>
+      </div>
+      <!-- 월별 상세 -->
+      <div class="card">
+        <div class="card-title">월별 순수입</div>
+        <div id="ledger-monthly-list"></div>
+      </div>
+      <!-- 파일 업로드 -->
+      <div class="card full" style="border:0.5px dashed var(--border-md);background:var(--bg-secondary);">
+        <div class="card-title">📂 가계부 업데이트</div>
+        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:12px;">뱅크샐러드 엑셀 파일을 업로드하면 데이터가 자동으로 갱신돼요.</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <label style="cursor:pointer;padding:8px 16px;background:var(--bg-primary);border:0.5px solid var(--border-md);border-radius:var(--radius-md);font-size:13px;">
+            📥 윤호 파일 업로드
+            <input type="file" accept=".xlsx" id="upload-yunho" style="display:none" onchange="handleLedgerUpload(event,'yunho')">
+          </label>
+          <label style="cursor:pointer;padding:8px 16px;background:var(--bg-primary);border:0.5px solid var(--border-md);border-radius:var(--radius-md);font-size:13px;">
+            📥 별 파일 업로드
+            <input type="file" accept=".xlsx" id="upload-byeol" style="display:none" onchange="handleLedgerUpload(event,'byeol')">
+          </label>
+        </div>
+        <div id="upload-status" style="font-size:12px;color:var(--text-secondary);margin-top:8px;"></div>
+      </div>
+    </div>
   </div>
 
   <div id="tab-overview">
@@ -922,16 +970,17 @@ async function updateAmt(id, val) {
 }
 
 function switchTab(tab) {
-  ['overview','assets','invest','tracking','chart'].forEach(t=>{
+  ['overview','assets','invest','ledger','tracking','chart'].forEach(t=>{
     document.getElementById('tab-'+t).style.display = t===tab ? '' : 'none';
   });
   document.querySelectorAll('.tab').forEach((el,i)=>{
-    el.classList.toggle('active', ['overview','assets','invest','tracking','chart'][i]===tab);
+    el.classList.toggle('active', ['overview','assets','invest','ledger','tracking','chart'][i]===tab);
   });
   if (tab==='chart')    setTimeout(updateCharts, 60);
   if (tab==='tracking') updateSnaps();
   if (tab==='assets')   updateDetailList();
   if (tab==='invest')   { initInvestListeners(); updateInvestTab(); }
+  if (tab==='ledger')   { initLedgerListeners(); updateLedgerTab(); }
   if (tab==='overview') initOverviewListeners();
 }
 
@@ -951,7 +1000,197 @@ loadData().then(() => {
   startRealtimeSync();
 });
 
-// ── 전체 현황 탭 소유자 필터 ──────────────────────────────
+// ── 가계부 데이터 ──────────────────────────────────────────
+const LEDGER_DATA = {"yunho":{"person":"윤호","months":["2025-04","2025-05","2025-06","2025-07","2025-08","2025-09","2025-10","2025-11","2025-12","2026-01","2026-02","2026-03","2026-04"],"monthly_income":{"2025-04":14200,"2025-05":4497853,"2025-06":3962485,"2025-07":3781190,"2025-08":3689540,"2025-09":4348208,"2025-10":3689667,"2025-11":4193230,"2025-12":6477393,"2026-01":12668660,"2026-02":4908590,"2026-03":3882921,"2026-04":4796607},"monthly_expense":{"2025-04":332994,"2025-05":1805233,"2025-06":756445,"2025-07":582172,"2025-08":1879020,"2025-09":47338772,"2025-10":1164085,"2025-11":1608050,"2025-12":1079447,"2026-01":452302,"2026-02":1591722,"2026-03":686202,"2026-04":463752},"cat_expense":{"자동차":46593866,"생활":3540850,"식사":1548700,"여행/숙박":1403328,"주거/통신":1232760,"경조사":1227300,"보험":1227084,"교통":851030,"술/유흥":656653,"더치페이":523285,"의료/건강":260300,"카페/간식":199600,"투자":197480,"의복/미용":147910,"문화/여가":48000,"출산/육아":46050,"데이트":32000,"교육":4000},"monthly_cat":{"2025-04":{"생활":9800,"식사":39800,"여행/숙박":296294,"카페/간식":6700},"2025-05":{"경조사":300000,"교통":133500,"더치페이":8700,"보험":51432,"생활":73400,"술/유흥":405000,"식사":118560,"여행/숙박":294571,"의료/건강":82500,"의복/미용":32800,"자동차":54900,"주거/통신":130390,"카페/간식":22000,"투자":97480},"2025-06":{"교통":87400,"문화/여가":3000,"보험":51432,"생활":11800,"술/유흥":122533,"식사":112400,"여행/숙박":182390,"의료/건강":83600,"자동차":9700,"주거/통신":77090,"카페/간식":15100},"2025-07":{"교통":55000,"보험":51432,"생활":6300,"식사":115900,"의료/건강":80200,"자동차":50000,"주거/통신":212830,"카페/간식":10510},"2025-08":{"교통":64100,"더치페이":62000,"보험":1122272,"술/유흥":1120,"식사":122100,"자동차":429138,"주거/통신":77090,"카페/간식":1200},"2025-09":{"경조사":50000,"교통":70130,"데이트":32000,"문화/여가":20000,"보험":267268,"생활":1396990,"식사":103300,"여행/숙박":38000,"의료/건강":10200,"자동차":45677400,"주거/통신":195730,"카페/간식":12290},"2025-10":{"경조사":50000,"교통":112850,"더치페이":16500,"보험":90808,"생활":180000,"술/유흥":69000,"식사":97400,"여행/숙박":592073,"자동차":58180,"주거/통신":77090,"카페/간식":1800},"2025-11":{"경조사":400000,"교통":5600,"문화/여가":25000,"보험":51432,"생활":578000,"식사":385790,"자동차":52638,"주거/통신":77090,"카페/간식":32500},"2025-12":{"경조사":100000,"교통":60900,"더치페이":436085,"보험":51432,"생활":19500,"식사":149950,"자동차":84490,"주거/통신":77090,"투자":100000},"2026-01":{"교통":66300,"보험":51432,"의복/미용":115110,"자동차":126320,"주거/통신":77090,"출산/육아":16050},"2026-02":{"경조사":50000,"교통":56900,"보험":51432,"생활":1235000,"식사":77500,"주거/통신":77090,"카페/간식":43800},"2026-03":{"경조사":150000,"교육":4000,"교통":59800,"보험":51432,"생활":37980,"술/유흥":59000,"식사":181000,"의료/건강":3800,"자동차":50000,"주거/통신":77090,"카페/간식":12100},"2026-04":{"경조사":127300,"교통":78550,"보험":51432,"생활":11680,"식사":45000,"자동차":1100,"주거/통신":77090,"출산/육아":30000,"카페/간식":41600}}},"byeol":{"person":"별","months":["2025-04","2025-05","2025-06","2025-07","2025-08","2025-09","2025-10","2025-11","2025-12","2026-01","2026-02","2026-03","2026-04"],"monthly_income":{"2025-05":4978529,"2025-06":4720177,"2025-07":29818209,"2025-08":6234640,"2025-09":6806702,"2025-10":5620614,"2025-11":5111663,"2025-12":4744546,"2026-01":5072418,"2026-02":7306279,"2026-03":5346683,"2026-04":6935822},"monthly_expense":{"2025-04":230229,"2025-05":1823330,"2025-06":6868474,"2025-07":1721351,"2025-08":2326241,"2025-09":5945686,"2025-10":3086242,"2025-11":3404877,"2025-12":1652623,"2026-01":5355385,"2026-02":3098860,"2026-03":2161519,"2026-04":3657705},"cat_expense":{"의료/건강":6752519,"자동차":6568031,"식비":4967992,"금융":4843156,"온라인쇼핑":4138552,"주거/통신":3251430,"경조/선물":2188100,"생활":1467503,"패션/쇼핑":1379225,"여행/숙박":1349326,"교통":1167600,"카페/간식":744755,"자녀/육아":617269,"교육/학습":564953,"문화/여가":478919,"뷰티/미용":468255,"술/유흥":384937},"monthly_cat":{"2025-04":{"경조/선물":29900,"교통":16200,"금융":70129,"생활":7000,"식비":63100,"의료/건강":43900},"2025-05":{"경조/선물":262700,"교통":74000,"금융":83000,"문화/여가":25000,"뷰티/미용":10000,"생활":151430,"식비":441749,"여행/숙박":15701,"온라인쇼핑":201902,"의료/건강":162850,"자동차":4500,"주거/통신":245840,"카페/간식":83950,"패션/쇼핑":60708},"2025-06":{"경조/선물":249020,"교통":63000,"금융":226588,"뷰티/미용":46800,"생활":133952,"술/유흥":70900,"식비":350989,"온라인쇼핑":44136,"의료/건강":45170,"자동차":5197000,"주거/통신":229160,"카페/간식":90170,"패션/쇼핑":121589},"2025-07":{"경조/선물":150000,"교통":66200,"금융":270714,"문화/여가":28000,"뷰티/미용":31850,"생활":135608,"술/유흥":149000,"식비":356189,"온라인쇼핑":135080,"주거/통신":244580,"카페/간식":22400,"패션/쇼핑":131730},"2025-08":{"경조/선물":100000,"교육/학습":564953,"교통":63150,"금융":52300,"문화/여가":91980,"뷰티/미용":39289,"생활":73920,"술/유흥":10000,"식비":655188,"온라인쇼핑":287131,"의료/건강":19200,"자동차":71900,"주거/통신":247880,"카페/간식":49350},"2025-09":{"경조/선물":75000,"교통":26700,"금융":2444128,"문화/여가":40000,"뷰티/미용":31990,"생활":148120,"술/유흥":155037,"식비":563720,"여행/숙박":149000,"온라인쇼핑":1037170,"의료/건강":63010,"자동차":769331,"주거/통신":233800,"카페/간식":102450,"패션/쇼핑":106230},"2025-10":{"경조/선물":730000,"교통":110800,"금융":375094,"뷰티/미용":76999,"생활":139360,"식비":423670,"여행/숙박":530620,"온라인쇼핑":19559,"의료/건강":241400,"자동차":104481,"주거/통신":248610,"카페/간식":52650,"패션/쇼핑":32999},"2025-11":{"경조/선물":144490,"교통":5900,"금융":347384,"뷰티/미용":29490,"생활":182309,"식비":445564,"여행/숙박":647005,"온라인쇼핑":460140,"의료/건강":686599,"자동차":52926,"주거/통신":233310,"카페/간식":65390,"패션/쇼핑":104370},"2025-12":{"경조/선물":130000,"교통":66000,"금융":413135,"문화/여가":175000,"뷰티/미용":24450,"생활":115271,"식비":174979,"여행/숙박":163000,"온라인쇼핑":190790,"의료/건강":101300,"자동차":147898,"주거/통신":251400,"카페/간식":25400},"2026-01":{"경조/선물":99790,"교통":307250,"금융":103174,"문화/여가":20940,"뷰티/미용":99067,"생활":96120,"식비":398876,"여행/숙박":100000,"온라인쇼핑":6791,"의료/건강":3633640,"자녀/육아":11999,"자동차":49895,"주거/통신":337500,"카페/간식":58995,"패션/쇼핑":44930},"2026-02":{"경조/선물":50000,"교통":135550,"금융":193568,"문화/여가":49000,"뷰티/미용":7900,"생활":123320,"식비":473886,"여행/숙박":60000,"온라인쇼핑":1426985,"의료/건강":48100,"자동차":55786,"주거/통신":338590,"카페/간식":103700,"패션/쇼핑":32475},"2026-03":{"경조/선물":93000,"교통":62000,"금융":167568,"문화/여가":47999,"뷰티/미용":70420,"생활":103533,"식비":379546,"여행/숙박":303421,"온라인쇼핑":394210,"의료/건강":64600,"자동차":24738,"주거/통신":353090,"카페/간식":26100,"패션/쇼핑":71294},"2026-04":{"경조/선물":74200,"교통":170850,"금융":96374,"문화/여가":1000,"생활":57560,"식비":240536,"여행/숙박":293421,"온라인쇼핑":51760,"의료/건강":1642750,"자녀/육아":605270,"자동차":89576,"주거/통신":287670,"카페/간식":64200,"패션/쇼핑":672900}}}};
+
+// ── 가계부 상태 ────────────────────────────────────────────
+let ledgerPerson = 'both';
+let ledgerBarChart = null;
+
+function getLedgerCombined() {
+  const yh = LEDGER_DATA.yunho;
+  const bl = LEDGER_DATA.byeol;
+  const allMonths = [...new Set([...yh.months, ...bl.months])].sort();
+  const monthly_income = {}, monthly_expense = {}, monthly_cat = {};
+  const cat_expense = {};
+  allMonths.forEach(m => {
+    monthly_income[m] = (yh.monthly_income[m]||0) + (bl.monthly_income[m]||0);
+    monthly_expense[m] = (yh.monthly_expense[m]||0) + (bl.monthly_expense[m]||0);
+    const cats = {};
+    const yc = yh.monthly_cat[m]||{};
+    const bc = bl.monthly_cat[m]||{};
+    [...new Set([...Object.keys(yc),...Object.keys(bc)])].forEach(c => {
+      cats[c] = (yc[c]||0)+(bc[c]||0);
+    });
+    monthly_cat[m] = cats;
+  });
+  const allCats = {};
+  Object.values(monthly_cat).forEach(mc => {
+    Object.entries(mc).forEach(([c,v]) => { allCats[c]=(allCats[c]||0)+v; });
+  });
+  return { months: allMonths, monthly_income, monthly_expense, monthly_cat, cat_expense: allCats };
+}
+
+function getLedgerData() {
+  if (ledgerPerson === 'yunho') return LEDGER_DATA.yunho;
+  if (ledgerPerson === 'byeol') return LEDGER_DATA.byeol;
+  return getLedgerCombined();
+}
+
+function fmtKRW(won) {
+  if (Math.abs(won) >= 100000000) return (won/100000000).toFixed(1)+'억';
+  if (Math.abs(won) >= 10000) return Math.round(won/10000).toLocaleString()+'만';
+  return won.toLocaleString()+'원';
+}
+
+function updateLedgerTab() {
+  const d = getLedgerData();
+  const months = d.months;
+
+  // 전체 합계
+  const totalIncome  = Object.values(d.monthly_income).reduce((s,v)=>s+v,0);
+  const totalExpense = Object.values(d.monthly_expense).reduce((s,v)=>s+v,0);
+  const totalNet     = totalIncome - totalExpense;
+  const lastM = months[months.length-1];
+  const lastIncome  = d.monthly_income[lastM]||0;
+  const lastExpense = d.monthly_expense[lastM]||0;
+
+  // 요약 카드
+  document.getElementById('ledger-summary').innerHTML = `
+    <div class="metric-card">
+      <div class="metric-label">최근월 수입 (${lastM})</div>
+      <div class="metric-value up">${fmtKRW(lastIncome)}</div>
+      <div class="metric-sub neutral">1년 합계 ${fmtKRW(totalIncome)}</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">최근월 지출 (${lastM})</div>
+      <div class="metric-value down">${fmtKRW(lastExpense)}</div>
+      <div class="metric-sub neutral">1년 합계 ${fmtKRW(totalExpense)}</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">최근월 순수입</div>
+      <div class="metric-value ${lastIncome-lastExpense>=0?'up':'down'}">${lastIncome-lastExpense>=0?'+':''}${fmtKRW(lastIncome-lastExpense)}</div>
+      <div class="metric-sub ${totalNet>=0?'up':'down'}">1년 순수입 ${totalNet>=0?'+':''}${fmtKRW(totalNet)}</div>
+    </div>`;
+
+  // 월별 바 차트
+  if (ledgerBarChart) ledgerBarChart.destroy();
+  const ctx = document.getElementById('ledger-bar-chart').getContext('2d');
+  ledgerBarChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: months,
+      datasets: [
+        { label:'수입', data: months.map(m=>d.monthly_income[m]||0), backgroundColor:'rgba(29,158,117,0.75)', borderRadius:3 },
+        { label:'지출', data: months.map(m=>d.monthly_expense[m]||0), backgroundColor:'rgba(216,90,48,0.75)', borderRadius:3 }
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ labels:{ font:{size:12} } }, tooltip:{ callbacks:{ label:c=>' '+fmtKRW(c.raw) } } },
+      scales:{
+        x:{ ticks:{font:{size:11}}, grid:{display:false} },
+        y:{ ticks:{ callback:v=>fmtKRW(v), font:{size:11} }, grid:{ color:'rgba(128,128,128,0.08)' } }
+      }
+    }
+  });
+
+  // 카테고리별 지출 (전체 기간)
+  const sortedCats = Object.entries(d.cat_expense).sort((a,b)=>b[1]-a[1]);
+  const maxCat = sortedCats[0]?.[1]||1;
+  const catColors2 = ['#378ADD','#1D9E75','#534AB7','#D85A30','#BA7517','#888780','#D84E9D','#2BBBAD','#E91E63','#FF9800'];
+  document.getElementById('ledger-cat-list').innerHTML = sortedCats.slice(0,10).map(([cat,amt],i)=>`
+    <div style="padding:7px 0;border-bottom:0.5px solid var(--border);">
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+        <span style="font-size:13px;color:var(--text-primary);">${cat}</span>
+        <span style="font-size:13px;font-weight:500;color:var(--text-primary);">${fmtKRW(amt)}</span>
+      </div>
+      <div style="background:var(--bg-secondary);border-radius:3px;height:5px;">
+        <div style="background:${catColors2[i%catColors2.length]};height:5px;border-radius:3px;width:${Math.round(amt/maxCat*100)}%;"></div>
+      </div>
+    </div>`).join('');
+
+  // 월별 순수입 목록
+  document.getElementById('ledger-monthly-list').innerHTML = [...months].reverse().map(m => {
+    const inc = d.monthly_income[m]||0;
+    const exp = d.monthly_expense[m]||0;
+    const net = inc - exp;
+    return `<div style="display:grid;grid-template-columns:70px 1fr 1fr 1fr;gap:4px;align-items:center;padding:7px 0;border-bottom:0.5px solid var(--border);font-size:12px;">
+      <span style="color:var(--text-secondary);">${m}</span>
+      <span class="up" style="text-align:right;">+${fmtKRW(inc)}</span>
+      <span class="down" style="text-align:right;">-${fmtKRW(exp)}</span>
+      <span class="${net>=0?'up':'down'}" style="text-align:right;font-weight:500;">${net>=0?'+':''}${fmtKRW(net)}</span>
+    </div>`;
+  }).join('');
+
+  document.getElementById('ledger-period-label').textContent = `(${months[0]} ~ ${months[months.length-1]})`;
+}
+
+function initLedgerListeners() {
+  document.querySelectorAll('#ledger-person-filter .of-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      ledgerPerson = btn.dataset.person;
+      document.querySelectorAll('#ledger-person-filter .of-btn').forEach(b=>b.classList.toggle('active', b===btn));
+      updateLedgerTab();
+    });
+  });
+}
+
+async function handleLedgerUpload(event, person) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const statusEl = document.getElementById('upload-status');
+  statusEl.textContent = `⏳ ${person === 'yunho' ? '윤호' : '별'} 파일 처리 중...`;
+  try {
+    const { read, utils } = await import('https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs');
+    const buf = await file.arrayBuffer();
+    const wb  = read(buf);
+    const ws  = wb.Sheets['가계부 내역'];
+    if (!ws) throw new Error("'가계부 내역' 시트를 찾을 수 없어요");
+    const rows = utils.sheet_to_json(ws, { defval:'' });
+
+    // 처리
+    const income = {}, expense = {}, catAll = {}, catMonthly = {};
+    const months = new Set();
+    rows.forEach(row => {
+      const type = row['타입'];
+      const amt  = Math.abs(Number(row['금액'])||0);
+      const cat  = row['대분류']||'미분류';
+      const rawDate = row['날짜'];
+      if (!rawDate || !type || !amt) return;
+      const d = typeof rawDate === 'number'
+        ? new Date(Math.round((rawDate - 25569)*86400000))
+        : new Date(rawDate);
+      if (isNaN(d)) return;
+      const ym = d.toISOString().slice(0,7);
+      months.add(ym);
+      if (type === '수입') { income[ym] = (income[ym]||0) + amt; }
+      else if (type === '지출') {
+        expense[ym] = (expense[ym]||0) + amt;
+        catAll[cat] = (catAll[cat]||0) + amt;
+        if (!catMonthly[ym]) catMonthly[ym] = {};
+        catMonthly[ym][cat] = (catMonthly[ym][cat]||0) + amt;
+      }
+    });
+    const key = person === 'yunho' ? 'yunho' : 'byeol';
+    LEDGER_DATA[key] = {
+      person: person === 'yunho' ? '윤호' : '별',
+      months: [...months].sort(),
+      monthly_income: income,
+      monthly_expense: expense,
+      cat_expense: catAll,
+      monthly_cat: catMonthly
+    };
+    // Firebase 저장
+    const { doc: fbDoc, setDoc: fbSet } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    await fbSet(fbDoc(db, 'family', 'ledger', 'data', key), LEDGER_DATA[key]);
+    statusEl.textContent = `✅ ${person === 'yunho' ? '윤호' : '별'} 데이터 업데이트 완료!`;
+    updateLedgerTab();
+  } catch(e) {
+    statusEl.textContent = `❌ 오류: ${e.message}`;
+    console.error(e);
+  }
+}
 let ownerFilter = 'all';
 
 function filterOwner(o) {
@@ -980,6 +1219,7 @@ window.updateAmtWon       = updateAmtWon;
 window.formatInp          = formatInp;
 window.deleteSnap         = deleteSnap;
 window.filterOwner        = filterOwner;
+window.handleLedgerUpload = handleLedgerUpload;
 </script>
 <script>
 if ('serviceWorker' in navigator) {
